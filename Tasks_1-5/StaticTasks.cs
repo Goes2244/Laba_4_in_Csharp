@@ -46,18 +46,24 @@ namespace lab4_1
             }
         }
 
-        // ЗАДАНИЕ 3.7 - HashSet
+        // ЗАДАНИЕ 3.7 - HashSet (фабрики)
         public static (IEnumerable<string> purchasedByAll, IEnumerable<string> purchasedBySome, IEnumerable<string> purchasedByNone) 
             AnalyzeFurniturePurchases(HashSet<string> allFactories, Dictionary<string, HashSet<string>> customerPurchases)
         {
-            var purchasedByAll = allFactories.Where(f => 
-                customerPurchases.Values.All(purchases => purchases.Contains(f)));
-            
-            var purchasedBySome = allFactories.Where(f => 
-                customerPurchases.Values.Any(purchases => purchases.Contains(f)));
-            
-            var purchasedByNone = allFactories.Where(f => 
-                customerPurchases.Values.All(purchases => !purchases.Contains(f)));
+            if (customerPurchases.Count == 0)
+                return (new HashSet<string>(), new HashSet<string>(), allFactories);
+
+            var purchasedByAll = new HashSet<string>(allFactories);
+            var purchasedBySome = new HashSet<string>();
+
+            foreach (var purchases in customerPurchases.Values)
+            {
+                purchasedByAll.IntersectWith(purchases);
+                purchasedBySome.UnionWith(purchases);
+            }
+
+            var purchasedByNone = new HashSet<string>(allFactories);
+            purchasedByNone.ExceptWith(purchasedBySome);
 
             return (purchasedByAll, purchasedBySome, purchasedByNone);
         }
@@ -67,29 +73,41 @@ namespace lab4_1
         {
             char[] deafConsonants = { 'п', 'ф', 'к', 'т', 'ш', 'с', 'х', 'ц', 'ч', 'щ' };
             
-            var words = text.ToLower().Split(new[] { ' ', ',', '.', '!', '?', ';', ':', '\n', '\r', '\t' }, 
-                                  StringSplitOptions.RemoveEmptyEntries);
+            var words = text.ToLower().Split(new[] { ' ', ',', '.', '!', '?', ';', ':', '\n', '\r', '\t' },
+                StringSplitOptions.RemoveEmptyEntries);
             
-            var oddWordsChars = new HashSet<char>();
-            var evenWordsChars = new HashSet<char>();
+            var nchetWordsChars = new HashSet<char>();
+            var chetWordsChars = new HashSet<char>();
             
             for (int i = 0; i < words.Length; i++)
             {
-                var wordChars = words[i].Where(char.IsLetter);
-                
-                if ((i + 1) % 2 == 1)
+                foreach (char c in words[i])
                 {
-                    oddWordsChars.UnionWith(wordChars);
-                }
-                else
-                {
-                    evenWordsChars.UnionWith(wordChars);
+                    if (!char.IsLetter(c)) continue;
+                    
+                    if ((i + 1) % 2 == 1)
+                    {
+                        nchetWordsChars.Add(c);
+                    }
+                    else
+                    {
+                        chetWordsChars.Add(c);
+                    }
                 }
             }
             
-            return deafConsonants.Where(c => 
-                oddWordsChars.Contains(c) && !evenWordsChars.Contains(c))
-                .OrderBy(c => c);
+            var result = new HashSet<char>();
+            foreach (char consonant in deafConsonants)
+            {
+                if (nchetWordsChars.Contains(consonant) && !chetWordsChars.Contains(consonant))
+                {
+                    result.Add(consonant);
+                }
+            }
+            
+            var sortedResult = new List<char>(result);
+            sortedResult.Sort();
+            return sortedResult;
         }
 
         // ЗАДАНИЕ 5.7 - Dictionary
@@ -103,9 +121,12 @@ namespace lab4_1
         {
             var lines = File.ReadAllLines(filePath);
             
-            var prices15 = new List<int>();
-            var prices20 = new List<int>();
-            var prices25 = new List<int>();
+            var minPrices = new Dictionary<int, (int minPrice, int count)>
+            {
+                { 15, (int.MaxValue, 0) },
+                { 20, (int.MaxValue, 0) },
+                { 25, (int.MaxValue, 0) }
+            };
 
             foreach (var line in lines)
             {
@@ -113,18 +134,25 @@ namespace lab4_1
                 if (parts.Length == 4 && int.TryParse(parts[2], out int fat) && 
                     int.TryParse(parts[3], out int price))
                 {
-                    switch (fat)
+                    if (minPrices.ContainsKey(fat))
                     {
-                        case 15: prices15.Add(price); break;
-                        case 20: prices20.Add(price); break;
-                        case 25: prices25.Add(price); break;
+                        var current = minPrices[fat];
+                        
+                        if (price < current.minPrice)
+                        {
+                            minPrices[fat] = (price, 1);
+                        }
+                        else if (price == current.minPrice)
+                        {
+                            minPrices[fat] = (current.minPrice, current.count + 1);
+                        }
                     }
                 }
             }
-
-            int count15 = prices15.Count > 0 ? prices15.Count(p => p == prices15.Min()) : 0;
-            int count20 = prices20.Count > 0 ? prices20.Count(p => p == prices20.Min()) : 0;
-            int count25 = prices25.Count > 0 ? prices25.Count(p => p == prices25.Min()) : 0;
+            
+            int count15 = minPrices[15].minPrice != int.MaxValue ? minPrices[15].count : 0;
+            int count20 = minPrices[20].minPrice != int.MaxValue ? minPrices[20].count : 0;
+            int count25 = minPrices[25].minPrice != int.MaxValue ? minPrices[25].count : 0;
 
             return (count15, count20, count25);
         }
